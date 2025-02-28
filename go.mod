@@ -1,4 +1,4 @@
-module github.com/xuri/excelize/v2
+module github.com/signatureproductsgroup/excelize
 
 go 1.20
 
