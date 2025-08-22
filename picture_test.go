@@ -42,6 +42,16 @@ func TestAddPicture(t *testing.T) {
 	assert.NoError(t, f.AddPicture("Sheet1", "F21", filepath.Join("test", "images", "excel.jpg"),
 		&GraphicOptions{OffsetX: 10, OffsetY: 10, Hyperlink: "https://github.com/xuri/excelize", HyperlinkType: "External", Positioning: "oneCell"}))
 
+	// Test add pictures to single cell with offsets
+	assert.NoError(t, f.AddPicture("Sheet2", "K22", filepath.Join("test", "images", "excel.jpg"),
+		&GraphicOptions{Positioning: "oneCell"}))
+	assert.NoError(t, f.AddPicture("Sheet2", "K22", filepath.Join("test", "images", "excel.jpg"),
+		&GraphicOptions{OffsetX: 200, Positioning: "oneCell"}))
+	assert.NoError(t, f.AddPicture("Sheet2", "K22", filepath.Join("test", "images", "excel.jpg"),
+		&GraphicOptions{OffsetX: 400, Positioning: "oneCell"}))
+	assert.NoError(t, f.AddPicture("Sheet2", "K22", filepath.Join("test", "images", "excel.jpg"),
+		&GraphicOptions{OffsetX: 600, Positioning: "oneCell"}))
+
 	file, err := os.ReadFile(filepath.Join("test", "images", "excel.png"))
 	assert.NoError(t, err)
 
@@ -83,7 +93,7 @@ func TestAddPicture(t *testing.T) {
 	// Test get picture cells
 	cells, err := f.GetPictureCells("Sheet1")
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"F21", "A30", "B30", "C30", "Q1", "Q8", "Q15", "Q22", "Q28"}, cells)
+	assert.Equal(t, []string{"A30", "B30", "C30", "Q1", "Q8", "Q15", "Q22", "Q28", "F21"}, cells)
 	assert.NoError(t, f.Close())
 
 	f, err = OpenFile(filepath.Join("test", "TestAddPicture1.xlsx"))
@@ -92,7 +102,7 @@ func TestAddPicture(t *testing.T) {
 	f.Drawings.Delete(path)
 	cells, err = f.GetPictureCells("Sheet1")
 	assert.NoError(t, err)
-	assert.Equal(t, []string{"F21", "A30", "B30", "C30", "Q1", "Q8", "Q15", "Q22", "Q28"}, cells)
+	assert.Equal(t, []string{"A30", "B30", "C30", "Q1", "Q8", "Q15", "Q22", "Q28", "F21"}, cells)
 	// Test get picture cells with unsupported charset
 	f.Drawings.Delete(path)
 	f.Pkg.Store(path, MacintoshCyrillicCharset)
@@ -258,7 +268,7 @@ func TestGetPicture(t *testing.T) {
 	// Test get embedded cell pictures
 	f, err = OpenFile(filepath.Join("test", "TestGetPicture.xlsx"))
 	assert.NoError(t, err)
-	assert.NoError(t, f.SetCellFormula("Sheet1", "F21", "=_xlfn.DISPIMG(\"ID_********************************\",1)"))
+	assert.NoError(t, f.SetCellFormula("Sheet1", "F21", "_xlfn.DISPIMG(\"ID_********************************\",1)"))
 	f.Pkg.Store(defaultXMLPathCellImages, []byte(`<etc:cellImages xmlns:etc="http://www.wps.cn/officeDocument/2017/etCustomData"><etc:cellImage><xdr:pic><xdr:nvPicPr><xdr:cNvPr id="1" name="ID_********************************" descr="CellImage1"/></xdr:nvPicPr><xdr:blipFill><a:blip r:embed="rId1"/></xdr:blipFill></xdr:pic></etc:cellImage></etc:cellImages>`))
 	f.Pkg.Store(defaultXMLPathCellImagesRels, []byte(fmt.Sprintf(`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="%s" Target="media/image1.jpeg"/></Relationships>`, SourceRelationshipImage)))
 	pics, err = f.GetPictures("Sheet1", "F21")
@@ -268,7 +278,7 @@ func TestGetPicture(t *testing.T) {
 	assert.Equal(t, PictureInsertTypeDISPIMG, pics[0].InsertType)
 
 	// Test get embedded cell pictures with invalid formula
-	assert.NoError(t, f.SetCellFormula("Sheet1", "A1", "=_xlfn.DISPIMG()"))
+	assert.NoError(t, f.SetCellFormula("Sheet1", "A1", "_xlfn.DISPIMG()"))
 	_, err = f.GetPictures("Sheet1", "A1")
 	assert.EqualError(t, err, "DISPIMG requires 2 numeric arguments")
 
@@ -290,7 +300,8 @@ func TestAddDrawingPicture(t *testing.T) {
 	opts := &GraphicOptions{PrintObject: boolPtr(true), Locked: boolPtr(false)}
 	assert.EqualError(t, f.addDrawingPicture("sheet1", "", "A", "", 0, 0, image.Config{}, opts), newCellNameToCoordinatesError("A", newInvalidCellNameError("A")).Error())
 	// Test addDrawingPicture with invalid positioning types
-	assert.Equal(t, f.addDrawingPicture("sheet1", "", "A1", "", 0, 0, image.Config{}, &GraphicOptions{Positioning: "x"}), ErrParameterInvalid)
+	assert.Equal(t, newInvalidOptionalValue("Positioning", "x", supportedPositioning),
+		f.addDrawingPicture("sheet1", "", "A1", "", 0, 0, image.Config{}, &GraphicOptions{Positioning: "x"}))
 
 	path := "xl/drawings/drawing1.xml"
 	f.Pkg.Store(path, MacintoshCyrillicCharset)
@@ -447,13 +458,13 @@ func TestGetPictureCells(t *testing.T) {
 	// Test get embedded picture cells
 	f = NewFile()
 	assert.NoError(t, f.AddPicture("Sheet1", "A1", filepath.Join("test", "images", "excel.png"), nil))
-	assert.NoError(t, f.SetCellFormula("Sheet1", "A2", "=_xlfn.DISPIMG(\"ID_********************************\",1)"))
+	assert.NoError(t, f.SetCellFormula("Sheet1", "A2", "_xlfn.DISPIMG(\"ID_********************************\",1)"))
 	cells, err = f.GetPictureCells("Sheet1")
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"A2", "A1"}, cells)
 
 	// Test get embedded cell pictures with invalid formula
-	assert.NoError(t, f.SetCellFormula("Sheet1", "A2", "=_xlfn.DISPIMG()"))
+	assert.NoError(t, f.SetCellFormula("Sheet1", "A2", "_xlfn.DISPIMG()"))
 	_, err = f.GetPictureCells("Sheet1")
 	assert.EqualError(t, err, "DISPIMG requires 2 numeric arguments")
 	assert.NoError(t, f.Close())
